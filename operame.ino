@@ -36,9 +36,9 @@ HardwareSerial    hwserial1(1);
 TFT_eSPI          display;
 TFT_eSprite       sprite(&display);
 MHZ19             mhz;
-WiFiClient	  wificlient;
+WiFiClient        wificlient;
 WiFiClientSecure  wificlientsecure;
-DHT             dht(DHTPIN, DHTTYPE);
+DHT               dht(DHTPIN, DHTTYPE);
 
 const int       pin_portalbutton = 35;
 const int       pin_demobutton   = 0;
@@ -55,17 +55,17 @@ int             co2_warning;
 int             co2_critical;
 int             co2_blink;
 String          mqtt_topic;
-bool		mqtt_template_enabled;
+bool            mqtt_template_enabled;
 String          mqtt_template;
-bool		mqtt_user_pass_enabled;
-String		mqtt_username;
-String		mqtt_password;
-bool		mqtt_temp_hum_enabled;
+bool            mqtt_user_pass_enabled;
+String          mqtt_username;
+String          mqtt_password;
+bool            mqtt_temp_hum_enabled;
 String          mqtt_topic_temperature;
-bool 	        mqtt_template_temp_hum_enabled;
-String		mqtt_template_temp;
+bool            mqtt_template_temp_hum_enabled;
+String          mqtt_template_temp;
 String          mqtt_topic_humidity;
-String		mqtt_template_hum;
+String          mqtt_template_hum;
 bool            add_units;
 bool            wifi_enabled;
 bool            mqtt_enabled;
@@ -291,7 +291,7 @@ void connect_mqtt() {
     if( mqtt_user_pass_enabled ) {
         if (mqtt.connect(WiFiSettings.hostname.c_str(), mqtt_username.c_str(), mqtt_password.c_str())) {
             failures = 0;
-	    display_big("MQTT connect");
+            display_big("MQTT connect");
         } else {
             failures++;
             if (failures >= max_failures) panic(T.error_mqtt);
@@ -602,7 +602,7 @@ void loop() {
             if (isnan(h) || isnan(t)) {
                 // Only display CO2 value (the old way)
                 // some MH-Z19's go to 10000 but the display has space for 4 digits
-                 if(co2 < 330 )
+                if(co2 < 330 )
                 {
                     display_cal(); 
                 }
@@ -638,42 +638,42 @@ void loop() {
         every(mqtt_interval) {
             if (co2 <= 0) break;
             connect_mqtt();
-	    //CO2
-	    String message;
-        const size_t capacity = JSON_OBJECT_SIZE(3);
-        DynamicJsonDocument doc(capacity);
-        doc["variable"] = "CO2";
-	    doc["value"] = co2;
-	    doc["unit"] = "ppm";
- 	    serializeJson(doc, message);
-	    retain(mqtt_topic, message);
+            //CO2
+            String message;
+            const size_t capacity = JSON_OBJECT_SIZE(3);
+            DynamicJsonDocument doc(capacity);
+            doc["variable"] = "CO2";
+            doc["value"] = co2;
+            doc["unit"] = "ppm";
+            serializeJson(doc, message);
+            retain(mqtt_topic, message);
 
-	    if(mqtt_temp_hum_enabled) {
-	    	//temperature
-	    	if(!isnan(t)) {
-                String message;
-                const size_t capacity = JSON_OBJECT_SIZE(3);
-                DynamicJsonDocument doc(capacity);
-                doc["variable"] = "temperature";
-                doc["value"] = t;
-                doc["unit"] = "C";
-                serializeJson(doc, message);
-                retain(mqtt_topic_temperature, message);
-	    	}
+            if(mqtt_temp_hum_enabled) {
+                //temperature
+                if(!isnan(t)) {
+                    String message;
+                    const size_t capacity = JSON_OBJECT_SIZE(3);
+                    DynamicJsonDocument doc(capacity);
+                    doc["variable"] = "temperature";
+                    doc["value"] = t;
+                    doc["unit"] = "C";
+                    serializeJson(doc, message);
+                    retain(mqtt_topic_temperature, message);
+                }
 
-	    	//humidity
-            if(!isnan(h)) {
-                String message;
-                const size_t capacity = JSON_OBJECT_SIZE(3);
-                DynamicJsonDocument doc(capacity);
-                doc["variable"] = "humidity";
-                doc["value"] = h;
-                doc["unit"] = "%R.H.";
-                serializeJson(doc, message);
-                retain(mqtt_topic_humidity, message);
-            }
-	    }	 
-	}
+                //humidity
+                if(!isnan(h)) {
+                    String message;
+                    const size_t capacity = JSON_OBJECT_SIZE(3);
+                    DynamicJsonDocument doc(capacity);
+                    doc["variable"] = "humidity";
+                    doc["value"] = h;
+                    doc["unit"] = "%R.H.";
+                    serializeJson(doc, message);
+                    retain(mqtt_topic_humidity, message);
+                }
+            }       
+        }
     }
 
     if (rest_enabled) {
