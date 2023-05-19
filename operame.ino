@@ -84,6 +84,11 @@ bool            rest_enabled;
 const char      topic[] = "power";
 String          mqtt_received;
 
+// multiple display modes
+int             display_mode = 0;
+const int       nb_display_modes = 2;
+
+// for development
 static bool     devel_mode = false;
 
 void retain(const String& topic, const String& message) {
@@ -196,24 +201,105 @@ void display_ppm(int ppm) {
     display_big(String(ppm), fg, bg);
 }
 
+void display_smooth(const int& co2, const String& temp, const String& hum, const String& power, int fg = TFT_WHITE, int bg = TFT_BLACK, int rs = TFT_BLACK) {
+    /* Display layout
+    * right: CO2 meter arc dial in square space  (135 x 135)
+    * left (top): 2 squares with temp and hum (105 x 77)
+    * left (bottom): readout from MQTT channel
+    */
+    clear_sprite(bg);
+
+    // useful numbers for left part
+    int left_width = display.width() - display.height();
+
+    // Draw dividing lines
+    // vline left of CO2 indication
+    sprite.drawFastVLine(left_width, 1, display.height() - 2, TFT_DARKGREY);
+    // hline left of CO2 below T and H
+    sprite.drawFastHLine(1, display.height()/2, left_width - 2, TFT_DARKGREY);
+    // vline between T and H indication
+    sprite.drawFastVLine(left_width / 2, 1 , display.height() / 2 - 2, TFT_DARKGREY);
+
+    // Arc and text center positions
+    uint16_t x_co2 = display.width() - display.height() / 2;
+    uint16_t y_co2 = display.height() / 2;
+    uint16_t x_tmp = left_width / 4;
+    uint16_t y_tmp = display.height() / 4;
+    uint16_t x_hum = 3 * left_width / 4;
+    uint16_t y_hum = display.height() / 4;
+    uint16_t x_pow = left_width / 2;
+    uint16_t y_pow = 3 * display.height() / 4;
+
+    sprite.setTextSize(1);
+    sprite.setTextFont(6);
+    sprite.setTextDatum(MC_DATUM);
+    sprite.setTextColor(fg, bg);
+    sprite.drawString(String(co2), x_co2, y_co2);
+    sprite.setTextFont(2); // value 3 doesn't seem to work
+    sprite.drawString(temp, x_tmp, y_tmp);
+    sprite.drawString(hum, x_hum, y_hum);
+    sprite.setTextFont(4); // value 5 doesn't seem to work
+    sprite.drawString(power, x_pow, y_pow);
+
+    uint8_t radius       = 9 * display.height() / 20;
+    uint8_t thickness    = 6;
+    uint8_t inner_radius = radius - thickness;
+
+    // Calculating angles for the arc
+    // Start angle fixed at 7 (= 30 degrees after 6)
+    // End angle depends on CO2, varies from 7 (30 degrees) to 5 (330 degrees)
+    // 400 => end = start angle of 30 degrees
+    // 2 * co2_critical => 330 degrees
+    uint16_t start_angle = 20;
+    uint16_t end_angle   = (co2 / 4) - 79;
+
+    sprite.drawSmoothArc(x_co2, y_co2, radius, inner_radius, start_angle, end_angle, fg, bg, true);
+
+    sprite.pushSprite(0, 0);
+}
+
 void display_ppm_t_h(int ppm, float t, float h, String power) {
     int fg, bg;
-    if (ppm >= co2_critical) {
-        fg = TFT_WHITE;
-        bg = TFT_RED;
-    } else if (ppm >= co2_warning) {
-        fg = TFT_BLACK;
-        bg = TFT_YELLOW;
-    } else {
-        fg = TFT_GREEN;
-        bg = TFT_BLACK;
-    }
 
-    if (ppm >= co2_blink && millis() % 2000 < 1000) {
-        std::swap(fg, bg);
-    }
+    switch (display_mode)
+    {
+    case 1:
+        if (ppm >= co2_critical) {
+            fg = TFT_RED;
+            bg = TFT_BLACK;
+        } else if (ppm >= co2_warning) {
+            fg = TFT_YELLOW;
+            bg = TFT_BLACK;
+        } else {
+            fg = TFT_GREEN;
+            bg = TFT_BLACK;
+        }
 
-    display_4(String(ppm), String(int(t)) + String("`C"), String(int(h)) + String("%"), String(power) + String("W"), fg, bg);
+        if (ppm >= co2_blink && millis() % 3000 < 1500) {
+            std::swap(fg, bg);
+        }
+        display_smooth(ppm, String(int(t)) + String("`C"), String(int(h)) + String("%"), String(power) + String("W"), fg, bg);
+        break;
+    
+    default:
+        if (ppm >= co2_critical) {
+            fg = TFT_WHITE;
+            bg = TFT_RED;
+        } else if (ppm >= co2_warning) {
+            fg = TFT_BLACK;
+            bg = TFT_YELLOW;
+        } else {
+            fg = TFT_GREEN;
+            bg = TFT_BLACK;
+        }
+
+        if (ppm >= co2_blink && millis() % 2000 < 1000) {
+            std::swap(fg, bg);
+        }
+
+        display_4(String(ppm), String(int(t)) + String("`C"), String(int(h)) + String("%"), String(power) + String("W"), fg, bg);
+        break;
+    }
 }
 
 void calibrate() {
@@ -286,7 +372,14 @@ void check_portalbutton() {
 }
 
 void check_demobutton() {
-    if (button(pin_demobutton)) ppm_demo();
+    // if (button(pin_demobutton)) ppm_demo();
+    if (button(pin_demobutton)) {
+        if (display_mode == nb_display_modes - 1) {
+            display_mode = 0;
+        } else {
+            display_mode++;
+        }
+    }
 }
 
 void check_buttons() {
