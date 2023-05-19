@@ -80,6 +80,10 @@ String          rest_resource_id;
 String          rest_cert;
 bool            rest_enabled;
 
+// for following MQTT topic
+const char      topic[] = "power";
+String          mqtt_received;
+
 void retain(const String& topic, const String& message) {
     Serial.printf("%s %s\n", topic.c_str(), message.c_str());
     mqtt.publish(topic, message, true, 0);
@@ -120,6 +124,23 @@ void display_3(const String& co2, const String& temp, const String& hum, int fg 
     sprite.drawString(temp, 10, display.height() - 15);
     sprite.setTextDatum(MR_DATUM);
     sprite.drawString(hum, display.width() - 10, display.height() - 15);
+
+    sprite.pushSprite(0, 0);
+}
+void display_4(const String& co2, const String& temp, const String& hum, const String& power, int fg = TFT_WHITE, int bg = TFT_BLACK) {
+    clear_sprite(bg);
+    sprite.setTextSize(1);
+    sprite.setTextFont(8);
+    sprite.setTextDatum(MC_DATUM);
+    sprite.setTextColor(fg, bg);
+    sprite.drawString(co2, display.width()/2, display.height()/2 - 25);
+    sprite.setTextFont(4);
+    sprite.setTextDatum(ML_DATUM);
+    sprite.drawString(temp, 10, display.height() - 15);
+    sprite.setTextDatum(MR_DATUM);
+    sprite.drawString(hum, display.width() - 10, display.height() - 15);
+    sprite.setTextDatum(MC_DATUM);
+    sprite.drawString(power, display.width()/2, display.height() - 15);
 
     sprite.pushSprite(0, 0);
 }
@@ -173,7 +194,7 @@ void display_ppm(int ppm) {
     display_big(String(ppm), fg, bg);
 }
 
-void display_ppm_t_h(int ppm, float t, float h) {
+void display_ppm_t_h(int ppm, float t, float h, String power) {
     int fg, bg;
     if (ppm >= co2_critical) {
         fg = TFT_WHITE;
@@ -190,7 +211,7 @@ void display_ppm_t_h(int ppm, float t, float h) {
         std::swap(fg, bg);
     }
 
-    display_3(String(ppm), String(int(t)) + String("`C"), String(int(h)) + String("%"), fg, bg);
+    display_4(String(ppm), String(int(t)) + String("`C"), String(int(h)) + String("%"), String(power) + String("W"), fg, bg);
 }
 
 void calibrate() {
@@ -305,6 +326,19 @@ void connect_mqtt() {
             if (failures >= max_failures) panic(T.error_mqtt);
         }
     }
+
+    mqtt.onMessage(callback_mqtt);
+    mqtt.subscribe(topic);
+    Serial.print("Subscribing to topic:");
+    Serial.println(topic);
+}
+
+// void callback_mqtt(int messageSize) {
+void callback_mqtt(String &topic, String &payload) {
+    // What to do if we receive a message over MQTT
+    mqtt_received=payload;
+    Serial.print("Received:");
+    Serial.println(mqtt_received);
 }
 
 void flush(Stream& s, int limit = 20) {
@@ -622,12 +656,12 @@ void loop() {
                 }
                 else if(co2 < 400)
                 {
-                    display_ppm_t_h(co2 < 399 ? 399 : co2, t, h);
+                    display_ppm_t_h(co2 < 399 ? 399 : co2, t, h, mqtt_received);
                 }
                 // Display also humidity and temperature
                 else if(co2 >= 400)
                 {
-                    display_ppm_t_h(co2 > 9999 ? 9999 : co2, t, h);
+                    display_ppm_t_h(co2 > 9999 ? 9999 : co2, t, h, mqtt_received);
                 }
             }
         }
@@ -635,9 +669,9 @@ void loop() {
 
     if (mqtt_enabled) {
         mqtt.loop();
+        connect_mqtt();
         every(mqtt_interval) {
             if (co2 <= 0) break;
-            connect_mqtt();
             //CO2
             String message;
             const size_t capacity = JSON_OBJECT_SIZE(3);
