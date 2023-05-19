@@ -84,6 +84,8 @@ bool            rest_enabled;
 const char      topic[] = "power";
 String          mqtt_received;
 
+static bool     devel_mode = false;
+
 void retain(const String& topic, const String& message) {
     Serial.printf("%s %s\n", topic.c_str(), message.c_str());
     mqtt.publish(topic, message, true, 0);
@@ -477,25 +479,37 @@ void setup() {
     while (digitalRead(pin_pcb_ok)) {
         display_big(T.error_module, TFT_RED);
         delay(1000);
+
+        if (button(pin_demobutton) or button(pin_portalbutton)) {
+            devel_mode = true;
+            display_big("Development mode", TFT_RED);
+            delay(1000);
+            break;
+        }
     }
 
     display_logo();
     delay(2000);
 
-    hwserial1.begin(9600, SERIAL_8N1, pin_sensor_rx, pin_sensor_tx);
+    if (devel_mode) {
+        hwserial1.begin(9600, SERIAL_8N1, pin_sensor_rx, pin_sensor_tx);
 
-    if (aqc_get_co2() >= 0) {
-        driver = AQC;
-        hwserial1.setTimeout(100);
-        Serial.println("Using AQC driver.");
+        if (aqc_get_co2() >= 0) {
+            driver = AQC;
+            hwserial1.setTimeout(100);
+            Serial.println("Using AQC driver.");
+        } else {
+            driver = MHZ;
+            mhz_setup();
+            Serial.println("Using MHZ driver.");
+        }
+
+        // Initialize DHT device.
+        dht.begin();
     } else {
-        driver = MHZ;
-        mhz_setup();
-        Serial.println("Using MHZ driver.");
+        driver = AQC;
+        Serial.println("No actual driver - development set.");
     }
-
-    // Initialize DHT device.
-    dht.begin();
     
     for (auto& str : T.portal_instructions[0]) {
         str.replace("{ssid}", WiFiSettings.hostname);
@@ -598,6 +612,13 @@ void post_rest_message(DynamicJsonDocument message, Stream& stream) {
 
 #define every(t) for (static unsigned long _lasttime; (unsigned long)((unsigned long)millis() - _lasttime) >= (t); _lasttime = millis())
 
+void random_values(int& co2, float& h, float& t)
+{
+    co2 = 400 + random(1200);
+    h = 35 + random(50);
+    t = 10 + random(20);
+}
+
 void loop() {
     static int co2;
     static float h;
@@ -606,17 +627,26 @@ void loop() {
 
     if(first_boot)
     {
-        co2 = get_co2();
-        h = dht.readHumidity();
-        t = dht.readTemperature();        
+        if (! devel_mode) {
+            co2 = get_co2();
+            h = dht.readHumidity();
+            t = dht.readTemperature();        
+        } else {
+            random_values(co2, h, t);
+        }
         first_boot = false;
     }
     
     every(60000) {
-        // Read CO2, humidity and temperature 
-        co2 = get_co2();
-        h = dht.readHumidity();
-        t = dht.readTemperature();
+        // Read CO2, humidity and temperature
+        if(! devel_mode) {
+            co2 = get_co2();
+            h = dht.readHumidity();
+            t = dht.readTemperature();
+        } else {
+            Serial.print("Randomize:");
+            random_values(co2, h, t);
+        }
         // Print data to serial port
         Serial.print(co2);
         Serial.print(",");
