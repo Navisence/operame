@@ -219,19 +219,22 @@ String formatPowerValue(float value) {
   }
 }
 
-void display_smooth(const int& co2, const String& temp, const String& hum, float power, int fg = TFT_WHITE, int bg = TFT_BLACK, int rs = TFT_BLACK) {
+void display_smooth(const int& co2, const String& temp, const String& hum, float power, int fg = TFT_WHITE, int bg = TFT_BLACK) {
     /* Display layout
     * right: CO2 meter arc dial in square space  (135 x 135)
     * left (top): 2 squares with temp and hum (105 x 77)
     * left (bottom): readout from MQTT channel
     */
-    clear_sprite(bg);
+    clear_sprite(TFT_BLACK);
 
     String power_str = formatPowerValue(power);
 
     // useful numbers for left part
     int left_width = display.width() - display.height();
     int left_height_top = display.height() - left_width;
+
+    // Background for CO2 dial
+    sprite.fillRect(left_width, 1, display.height() - 2, display.height() - 2, bg);
 
     // Draw dividing lines
     // vline left of CO2 indication
@@ -256,11 +259,11 @@ void display_smooth(const int& co2, const String& temp, const String& hum, float
     sprite.setTextDatum(MC_DATUM);
     sprite.setTextColor(fg, bg);
     sprite.drawString(String(co2), x_co2, y_co2);
+
+    sprite.setTextColor(TFT_WHITE, TFT_BLACK);
     sprite.setTextFont(2); // value 3 doesn't seem to work
     sprite.drawString(temp, x_tmp, y_tmp);
     sprite.drawString(hum, x_hum, y_hum);
-    sprite.setTextFont(4); // value 5 doesn't seem to work
-    sprite.drawString(power_str, x_pow, y_pow);
 
     // Calculating angles for the arcs (CO2)
     // Value angle depends on CO2, varies from 20 degrees to 340 degrees
@@ -298,10 +301,15 @@ void display_smooth(const int& co2, const String& temp, const String& hum, float
 
     valueAngle = map(powDraw, powMin, powMax, startAngle, endAngle);
     if (isNegative) {
-        sprite.drawSmoothArc(x_pow, y_pow, radius, inner_radius, valueAngle, startAngle, fg, bg, true);
+        sprite.drawSmoothArc(x_pow, y_pow, radius, inner_radius, valueAngle, startAngle, TFT_ORANGE, TFT_BLACK, true);
+        sprite.setTextColor(TFT_ORANGE);
     } else {
-        sprite.drawSmoothArc(x_pow, y_pow, radius, inner_radius, startAngle, valueAngle, fg, bg, true);
+        sprite.drawSmoothArc(x_pow, y_pow, radius, inner_radius, startAngle, valueAngle, TFT_GREEN, TFT_BLACK, true);
+        sprite.setTextColor(TFT_GREEN);
     }
+    
+    sprite.setTextFont(4); // value 5 doesn't seem to work
+    sprite.drawString(power_str, x_pow, y_pow);
 
     sprite.pushSprite(0, 0);
 }
@@ -326,7 +334,7 @@ void display_ppm_t_h(int ppm, float t, float h, float power) {
         if (ppm >= co2_blink && millis() % 3000 < 1500) {
             std::swap(fg, bg);
         }
-        display_smooth(ppm, String(int(t)) + String("`C"), String(int(h)) + String("%"), power, fg, bg);
+        display_smooth(ppm, String(int(t)) + String(" `C"), String(int(h)) + String(" %"), power, fg, bg);
         break;
     
     default:
