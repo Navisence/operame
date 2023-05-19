@@ -584,7 +584,7 @@ void setup() {
     display_logo();
     delay(2000);
 
-    if (devel_mode) {
+    if (! devel_mode) {
         hwserial1.begin(9600, SERIAL_8N1, pin_sensor_rx, pin_sensor_tx);
 
         if (aqc_get_co2() >= 0) {
