@@ -134,7 +134,7 @@ void display_3(const String& co2, const String& temp, const String& hum, int fg 
 
     sprite.pushSprite(0, 0);
 }
-void display_4(const String& co2, const String& temp, const String& hum, const String& power, int fg = TFT_WHITE, int bg = TFT_BLACK) {
+void display_4(const String& co2, const String& temp, const String& hum, float power, int fg = TFT_WHITE, int bg = TFT_BLACK) {
     clear_sprite(bg);
     sprite.setTextSize(1);
     sprite.setTextFont(8);
@@ -147,7 +147,7 @@ void display_4(const String& co2, const String& temp, const String& hum, const S
     sprite.setTextDatum(MR_DATUM);
     sprite.drawString(hum, display.width() - 10, display.height() - 15);
     sprite.setTextDatum(MC_DATUM);
-    sprite.drawString(power, display.width()/2, display.height() - 15);
+    sprite.drawString(formatPowerValue(power), display.width()/2, display.height() - 15);
 
     sprite.pushSprite(0, 0);
 }
@@ -201,7 +201,25 @@ void display_ppm(int ppm) {
     display_big(String(ppm), fg, bg);
 }
 
-void display_smooth(const int& co2, const String& temp, const String& hum, const String& power, int fg = TFT_WHITE, int bg = TFT_BLACK, int rs = TFT_BLACK) {
+String formatPowerValue(float value) {
+  bool isNegative = value < 0;
+  if (isNegative) {
+    value *= -1;  // Convert negative value to positive for formatting
+  }
+
+  if (value >= 1000) {
+    // Convert to kilowatts (kW)
+    value /= 1000.0;
+    String formattedValue = String(value, 1) + " kW";
+    return isNegative ? "-" + formattedValue : formattedValue;
+  } else {
+    // Keep the value in watts (W)
+    String formattedValue = String(value, 0) + " W";
+    return isNegative ? "-" + formattedValue : formattedValue;
+  }
+}
+
+void display_smooth(const int& co2, const String& temp, const String& hum, float power, int fg = TFT_WHITE, int bg = TFT_BLACK, int rs = TFT_BLACK) {
     /* Display layout
     * right: CO2 meter arc dial in square space  (135 x 135)
     * left (top): 2 squares with temp and hum (105 x 77)
@@ -209,26 +227,29 @@ void display_smooth(const int& co2, const String& temp, const String& hum, const
     */
     clear_sprite(bg);
 
+    String power_str = formatPowerValue(power);
+
     // useful numbers for left part
     int left_width = display.width() - display.height();
+    int left_height_top = display.height() - left_width;
 
     // Draw dividing lines
     // vline left of CO2 indication
     sprite.drawFastVLine(left_width, 1, display.height() - 2, TFT_DARKGREY);
     // hline left of CO2 below T and H
-    sprite.drawFastHLine(1, display.height()/2, left_width - 2, TFT_DARKGREY);
+    sprite.drawFastHLine(1, left_height_top, left_width - 2, TFT_DARKGREY);
     // vline between T and H indication
-    sprite.drawFastVLine(left_width / 2, 1 , display.height() / 2 - 2, TFT_DARKGREY);
+    sprite.drawFastVLine(left_width / 2, 1 , left_height_top - 2, TFT_DARKGREY);
 
     // Arc and text center positions
     uint16_t x_co2 = display.width() - display.height() / 2;
     uint16_t y_co2 = display.height() / 2;
     uint16_t x_tmp = left_width / 4;
-    uint16_t y_tmp = display.height() / 4;
+    uint16_t y_tmp = left_height_top / 2;
     uint16_t x_hum = 3 * left_width / 4;
-    uint16_t y_hum = display.height() / 4;
+    uint16_t y_hum = left_height_top / 2;
     uint16_t x_pow = left_width / 2;
-    uint16_t y_pow = 3 * display.height() / 4;
+    uint16_t y_pow = left_height_top + left_width / 2;
 
     sprite.setTextSize(1);
     sprite.setTextFont(6);
@@ -239,26 +260,53 @@ void display_smooth(const int& co2, const String& temp, const String& hum, const
     sprite.drawString(temp, x_tmp, y_tmp);
     sprite.drawString(hum, x_hum, y_hum);
     sprite.setTextFont(4); // value 5 doesn't seem to work
-    sprite.drawString(power, x_pow, y_pow);
+    sprite.drawString(power_str, x_pow, y_pow);
 
+    // Calculating angles for the arcs (CO2)
+    // Value angle depends on CO2, varies from 20 degrees to 340 degrees
     uint8_t radius       = 9 * display.height() / 20;
     uint8_t thickness    = 6;
     uint8_t inner_radius = radius - thickness;
+    uint16_t startAngle = 20;
+    uint16_t endAngle   = 340;
+    uint16_t co2Min     = 400;
+    uint16_t co2Max     = 1700;
+    uint16_t co2Draw    = constrain(co2, co2Min, co2Max);
 
-    // Calculating angles for the arc
-    // Start angle fixed at 7 (= 30 degrees after 6)
-    // End angle depends on CO2, varies from 7 (30 degrees) to 5 (330 degrees)
-    // 400 => end = start angle of 30 degrees
-    // 2 * co2_critical => 330 degrees
-    uint16_t start_angle = 20;
-    uint16_t end_angle   = (co2 / 4) - 79;
+    float valueAngle = map(co2Draw, co2Min, co2Max, startAngle, endAngle);
+    sprite.drawSmoothArc(x_co2, y_co2, radius, inner_radius, startAngle, valueAngle, fg, bg, true);
 
-    sprite.drawSmoothArc(x_co2, y_co2, radius, inner_radius, start_angle, end_angle, fg, bg, true);
+    // calculating angles for the arcs (Power)
+    radius       = 9 * left_width / 20;
+    inner_radius = radius - thickness;
+
+    bool isNegative = power < 0;
+    float power_abs;
+
+    if (isNegative) {
+        startAngle = 360;
+        endAngle   = 20;
+        power_abs  = -1 * power;
+    } else {
+        startAngle = 0;
+        endAngle   = 340;
+        power_abs  = power;
+    }
+    float powMin       = 0;
+    float powMax       = 3000;
+    float powDraw      = constrain(power_abs, powMin, powMax);
+
+    valueAngle = map(powDraw, powMin, powMax, startAngle, endAngle);
+    if (isNegative) {
+        sprite.drawSmoothArc(x_pow, y_pow, radius, inner_radius, valueAngle, startAngle, fg, bg, true);
+    } else {
+        sprite.drawSmoothArc(x_pow, y_pow, radius, inner_radius, startAngle, valueAngle, fg, bg, true);
+    }
 
     sprite.pushSprite(0, 0);
 }
 
-void display_ppm_t_h(int ppm, float t, float h, String power) {
+void display_ppm_t_h(int ppm, float t, float h, float power) {
     int fg, bg;
 
     switch (display_mode)
@@ -278,7 +326,7 @@ void display_ppm_t_h(int ppm, float t, float h, String power) {
         if (ppm >= co2_blink && millis() % 3000 < 1500) {
             std::swap(fg, bg);
         }
-        display_smooth(ppm, String(int(t)) + String("`C"), String(int(h)) + String("%"), String(power) + String("W"), fg, bg);
+        display_smooth(ppm, String(int(t)) + String("`C"), String(int(h)) + String("%"), power, fg, bg);
         break;
     
     default:
@@ -297,7 +345,7 @@ void display_ppm_t_h(int ppm, float t, float h, String power) {
             std::swap(fg, bg);
         }
 
-        display_4(String(ppm), String(int(t)) + String("`C"), String(int(h)) + String("%"), String(power) + String("W"), fg, bg);
+        display_4(String(ppm), String(int(t)) + String("`C"), String(int(h)) + String("%"), power, fg, bg);
         break;
     }
 }
@@ -707,9 +755,9 @@ void post_rest_message(DynamicJsonDocument message, Stream& stream) {
 
 void random_values(int& co2, float& h, float& t)
 {
-    co2 = 400 + random(1200);
-    h = 35 + random(50);
-    t = 10 + random(20);
+    co2 = random(400, 1700);
+    h = random(35, 85);
+    t = random(10, 35);
 }
 
 void loop() {
@@ -717,6 +765,7 @@ void loop() {
     static float h;
     static float t;
     static bool first_boot = true;
+    // static float power_test = 0;
 
     if(first_boot)
     {
@@ -755,6 +804,12 @@ void loop() {
         } else if (co2 == 0) {
             display_big(T.wait);
         } else {
+            float power_float = mqtt_received.toFloat();
+            // if (power_test >= 3000) {
+            //     power_test = -power_test;
+            // } else {
+            //     power_test += 13;
+            // }
             // Check if there is a humidity sensor
             if (isnan(h) || isnan(t)) {
                 // Only display CO2 value (the old way)
@@ -779,12 +834,12 @@ void loop() {
                 }
                 else if(co2 < 400)
                 {
-                    display_ppm_t_h(co2 < 399 ? 399 : co2, t, h, mqtt_received);
+                    display_ppm_t_h(co2 < 399 ? 399 : co2, t, h, power_float);
                 }
                 // Display also humidity and temperature
                 else if(co2 >= 400)
                 {
-                    display_ppm_t_h(co2 > 9999 ? 9999 : co2, t, h, mqtt_received);
+                    display_ppm_t_h(co2 > 9999 ? 9999 : co2, t, h, power_float);
                 }
             }
         }
