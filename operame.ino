@@ -219,7 +219,7 @@ String formatPowerValue(float value) {
   }
 }
 
-void display_smooth(const int& co2, const String& temp, const String& hum, float power, int fg = TFT_WHITE, int bg = TFT_BLACK) {
+void display_smooth(const int& co2, const String& temp, const String& hum, float power, int fg = TFT_WHITE, int bg = TFT_BLACK, bool noLines = true) {
     /* Display layout
     * right: CO2 meter arc dial in square space  (135 x 135)
     * left (top): 2 squares with temp and hum (105 x 77)
@@ -231,34 +231,43 @@ void display_smooth(const int& co2, const String& temp, const String& hum, float
 
     // useful numbers for left part
     int left_width = display.width() - display.height();
-    int left_height_top = display.height() - left_width;
+    int left_height_top = left_width;
+    int left_height_bottom = display.height() - left_width;
 
-    // Background for CO2 dial
-    sprite.fillRect(left_width, 1, display.height() - 2, display.height() - 2, bg);
-
-    // Draw dividing lines
-    // vline left of CO2 indication
-    sprite.drawFastVLine(left_width, 1, display.height() - 2, TFT_DARKGREY);
-    // hline left of CO2 below T and H
-    sprite.drawFastHLine(1, left_height_top, left_width - 2, TFT_DARKGREY);
-    // vline between T and H indication
-    sprite.drawFastVLine(left_width / 2, 1 , left_height_top - 2, TFT_DARKGREY);
+    if (! noLines) {
+        // Background for CO2 dial
+        sprite.fillRect(left_width, 1, display.height() - 2, display.height() - 2, bg);
+        // Draw dividing lines
+        // vline left of CO2 indication
+        sprite.drawFastVLine(left_width, 1, display.height() - 2, TFT_DARKGREY);
+        // hline left of CO2 below T and H
+        sprite.drawFastHLine(1, left_height_top, left_width - 2, TFT_DARKGREY);
+        // vline between T and H indication
+        sprite.drawFastVLine(left_width / 2, left_height_top , left_height_top - 2, TFT_DARKGREY);
+    }
 
     // Arc and text center positions
     uint16_t x_co2 = display.width() - display.height() / 2;
     uint16_t y_co2 = display.height() / 2;
     uint16_t x_tmp = left_width / 4;
-    uint16_t y_tmp = left_height_top / 2;
+    uint16_t y_tmp = left_height_top + (left_height_bottom / 2);
     uint16_t x_hum = 3 * left_width / 4;
-    uint16_t y_hum = left_height_top / 2;
+    uint16_t y_hum = left_height_top + (left_height_bottom / 2);
     uint16_t x_pow = left_width / 2;
-    uint16_t y_pow = left_height_top + left_width / 2;
+    uint16_t y_pow = left_width / 2;
+
+    if (noLines) {
+        sprite.fillCircle(x_co2, y_co2, display.height() / 2 - 1, bg);
+        sprite.drawCircle(x_co2, y_co2, display.height() / 2 - 1, TFT_DARKGREY);
+        sprite.drawCircle(x_pow, y_pow, left_width / 2 - 1, TFT_DARKGREY);
+    }
 
     sprite.setTextSize(1);
     sprite.setTextFont(6);
     sprite.setTextDatum(MC_DATUM);
     sprite.setTextColor(fg, bg);
     sprite.drawString(String(co2), x_co2, y_co2);
+    sprite.drawString("ppm", x_co2, 3 * display.height() * 4);
 
     sprite.setTextColor(TFT_WHITE, TFT_BLACK);
     sprite.setTextFont(2); // value 3 doesn't seem to work
@@ -632,6 +641,7 @@ void setup() {
         if (button(pin_demobutton) or button(pin_portalbutton)) {
             devel_mode = true;
             display_big("Development mode", TFT_RED);
+            Serial.println("Entering development mode");
             delay(1000);
             break;
         }
