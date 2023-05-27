@@ -83,6 +83,7 @@ bool            rest_enabled;
 // for following MQTT topic
 const char      topic[] = "power";
 String          mqtt_received;
+int             mqtt_recent;
 
 // multiple display modes
 int             display_mode = 0;
@@ -320,6 +321,10 @@ void display_smooth(const int& co2, const String& temp, const String& hum, float
     sprite.setTextFont(4); // value 5 doesn't seem to work
     sprite.drawString(power_str, x_pow, y_pow);
 
+    if (mqtt_recent > 0) {
+        sprite.fillCircle(x_pow, y_pow + 15, 5, TFT_RED);
+    }
+
     sprite.pushSprite(0, 0);
 }
 
@@ -497,6 +502,7 @@ void connect_mqtt() {
 void callback_mqtt(String &topic, String &payload) {
     // What to do if we receive a message over MQTT
     mqtt_received=payload;
+    mqtt_recent=10;
     Serial.print("Received:");
     Serial.println(mqtt_received);
 }
@@ -823,6 +829,9 @@ void loop() {
             display_big(T.wait);
         } else {
             float power_float = mqtt_received.toFloat();
+            if (mqtt_recent > 0) {
+                mqtt_recent -= 1;
+            }
             // if (power_test >= 3000) {
             //     power_test = -power_test;
             // } else {
