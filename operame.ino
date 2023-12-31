@@ -268,7 +268,7 @@ void display_smooth(const int& co2, const String& temp, const String& hum, float
     sprite.setTextDatum(MC_DATUM);
     sprite.setTextColor(fg, bg);
     sprite.drawString(String(co2), x_co2, y_co2);
-    sprite.drawString("ppm", x_co2, 3 * display.height() * 4);
+    sprite.drawString("ppm", x_co2, 3 * display.height() / 4);
 
     sprite.setTextColor(TFT_WHITE, TFT_BLACK);
     sprite.setTextFont(2); // value 3 doesn't seem to work
