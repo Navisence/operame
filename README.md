@@ -47,3 +47,6 @@ If you have a 16MB TTGO T-Display board, you can change the env settings in the 
 board = esp32thing_plus
 board_build.partitions = default_16MB.csv
 
+# Repobeats
+
+![Alt](https://repobeats.axiom.co/api/embed/91540bb18b6216b472f7aa9f63efe239038fbd64.svg "Repobeats analytics image")
